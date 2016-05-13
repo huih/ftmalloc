@@ -13,7 +13,8 @@
 namespace ftmalloc
 {
     extern CMmapPageAllocator s_page_allocator;
-    static CSlab<CCacheAllocator> s_mem_alloc_slab(s_page_allocator);
+    const size_t s_tc_page_bit = 12;
+    static CSlab<CCacheAllocator> s_mem_alloc_slab(s_page_allocator, s_tc_page_bit);
     static CMutexType sCacheAllocateLock = FT_MUTEX_INITIALIZER();
     
     IMemAlloc * IMemAlloc::CreateMemAllocator()

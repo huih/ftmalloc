@@ -15,7 +15,7 @@ namespace ftmalloc
     public:
         virtual ~IPageAlloc() {}
 
-        virtual void * AllocPages(size_t) = 0;
+        virtual void * AllocPages(size_t pages, size_t page_bits = FT_PAGE_BIT) = 0;
         virtual void ReleasePages(void *, size_t) = 0;
     };
 }

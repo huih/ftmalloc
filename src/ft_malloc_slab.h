@@ -17,12 +17,18 @@ namespace ftmalloc
     class CSlab
     {
     public:
-        CSlab(IPageAlloc & allocator)
+        CSlab(IPageAlloc & allocator, size_t page_bits = FT_PAGE_BIT)
             : page_allocator(allocator)
             , _freelist(NULL)
             , _freenum(0)
             , _totalnum(0)
+            , _page_bits(page_bits)
         {
+            if (_page_bits <= 0) {
+                _page_bits = FT_PAGE_BIT;
+            } else if (_page_bits < 12) {
+                _page_bits = 12;    //4// 4k. 1 << 12.
+            }
         }
 
         ~CSlab()
@@ -34,11 +40,11 @@ namespace ftmalloc
             void * node = NULL;
 
             if (_freelist == NULL || _freenum == 0) {
-                void * addr = page_allocator.AllocPages(1);
+                void * addr = page_allocator.AllocPages(1, _page_bits);
 
                 size_t nodesize = sizeof(T);
                 size_t start    = (size_t)addr;
-                size_t end 	    = (size_t)(start + (1 << FT_PAGE_BIT));
+                size_t end 	    = (size_t)(start + (1 << _page_bits));
                 size_t curr     = start;
                 size_t next     = curr + nodesize;
 
@@ -78,6 +84,7 @@ namespace ftmalloc
         void * _freelist;
         size_t _freenum;
         size_t _totalnum;
+        size_t _page_bits;
 
         IPageAlloc & page_allocator;
     };
