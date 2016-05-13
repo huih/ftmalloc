@@ -10,52 +10,53 @@
 
 namespace ftmalloc
 {   
-    struct SSpanNode
+    class CCentralCacheMgr
     {
-        int span_size;
-        int free_size;
-        
-        struct rb_node span_node;
-        struct rb_node alloc_node;
+    private:
+        struct SSpanNode
+        {
+            int span_size;
+            int free_size;
+            
+            struct rb_node span_node;
+            struct rb_node alloc_node;
 
-        void * span_addr;
-        void * object_list;
+            void * span_addr;
+            void * object_list;
 
-        const char * c_string() {
-            static char buf[128];
-#ifdef _DEBUG
-            snprintf(buf, 128, "SSpanNode, span_size:%d, free_size:%d, span_addr:%p, object_list:%p",
-                span_size, free_size, span_addr, object_list);
-#else
-            buf[0] = 'N';
-            buf[1] = '\0';
-#endif
-            return buf;
-        }
-    };
-
-    struct SSpanInfo
-    {
-        int span_count;
-        int free_object;
-        rb_root span_tree;      //rb_tree root.
-        rb_root alloc_tree;     //rb tree which has node to alloc.
-
-        const char * c_string() {
+            const char * c_string() {
                 static char buf[128];
 #ifdef _DEBUG
-                snprintf(buf, 128, "SSpanInfo, span_count:%d, free_object:%d",
-                    span_count, free_object);
+                snprintf(buf, 128, "SSpanNode, span_size:%d, free_size:%d, span_addr:%p, object_list:%p",
+                    span_size, free_size, span_addr, object_list);
 #else
                 buf[0] = 'N';
                 buf[1] = '\0';
 #endif
                 return buf;
             }
-    };
+        };
 
-    class CCentralCacheMgr
-    {
+        struct SSpanInfo
+        {
+            int span_count;
+            int free_object;
+            rb_root span_tree;      //rb_tree root.
+            rb_root alloc_tree;     //rb tree which has node to alloc.
+
+            const char * c_string() {
+                    static char buf[128];
+#ifdef _DEBUG
+                    snprintf(buf, 128, "SSpanInfo, span_count:%d, free_object:%d",
+                        span_count, free_object);
+#else
+                    buf[0] = 'N';
+                    buf[1] = '\0';
+#endif
+                    return buf;
+                }
+        };
+        
     public:
         static CCentralCacheMgr & GetInstance();
         

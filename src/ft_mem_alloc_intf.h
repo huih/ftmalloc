@@ -21,7 +21,7 @@ namespace ftmalloc
         virtual void Free(void *) = 0;
 
         static IMemAlloc * CreateMemAllocator();
-        static void DestroyMemAllocator(IMemAlloc * allcator);
+        static void DestroyMemAllocator(IMemAlloc * &allocator);
     };
 }
 

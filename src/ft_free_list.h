@@ -28,7 +28,7 @@ namespace ftmalloc
     // modified to point to the new head.  start and end will point to the first
     // and last nodes of the range.  Note that end will point to NULL after this
     // function is called.
-    inline void SLL_PopRange(void **head, int32 N, void **start, void **end) {
+    inline void SLL_PopRange(void **head, size_t N, void **start, void **end) {
         if (N == 0) {
             *start = NULL;
             *end = NULL;
@@ -36,7 +36,7 @@ namespace ftmalloc
         }
 
         void *tmp = *head;
-        for (int32 i = 1; i < N; ++i) {
+        for (size_t i = 1; i < N; ++i) {
             tmp = SLL_Next(tmp);
         }
 
@@ -54,7 +54,7 @@ namespace ftmalloc
     }
 
     inline size_t SLL_Size(void *head) {
-        int32 count = 0;
+        size_t count = 0;
         while (head) {
             count++;
             head = SLL_Next(head);
@@ -146,12 +146,12 @@ namespace ftmalloc
             return SLL_Next(&list_);
         }
 
-        void PushRange(int32 N, void *start, void *end) {
+        void PushRange(size_t N, void *start, void *end) {
             SLL_PushRange(&list_, start, end);
             length_ += N;
         }
 
-        void PopRange(int32 N, void **start, void **end) {
+        void PopRange(size_t N, void **start, void **end) {
             SLL_PopRange(&list_, N, start, end);
             //ASSERT(length_ >= N);
             length_ -= N;

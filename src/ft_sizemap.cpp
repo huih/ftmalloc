@@ -167,8 +167,8 @@ namespace ftmalloc
 
     void CSizeMap::print()
     {
-        int32 length = sizeof(class_to_size_) / sizeof(class_to_size_[0]);
-        for (int32 i = 0; i < length; i++) {
+        size_t length = sizeof(class_to_size_) / sizeof(class_to_size_[0]);
+        for (size_t i = 0; i < length; i++) {
             printf("class_to_size_[%d] = %d, class_to_pages_[%d] = %d, number:%d\n",
                 i, class_to_size_[i], i, class_to_pages_[i], num_objects_to_move_[i]);
         }

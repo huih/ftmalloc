@@ -14,20 +14,19 @@ namespace ftmalloc
 {
     extern CMmapPageAllocator s_page_allocator;
     static CSlab<CCacheAllocator> s_mem_alloc_slab(s_page_allocator);
+    static CMutexType sCacheAllocateLock = FT_MUTEX_INITIALIZER();
     
     IMemAlloc * IMemAlloc::CreateMemAllocator()
     {
-         void * addr = s_mem_alloc_slab.AllocNode();
-         ::new((void *)addr) CCacheAllocator();
-
-         return (CCacheAllocator *)addr;
+         CAutoLock lock(sCacheAllocateLock);
+         CCacheAllocator * allocator = s_mem_alloc_slab.AllocNode();
+         return allocator;
     }
 
-    void IMemAlloc::DestroyMemAllocator(IMemAlloc * allcator)
+    void IMemAlloc::DestroyMemAllocator(IMemAlloc * &allocator)
     {
         if (allocator != NULL) {
-            allcator->~IMemAlloc();
-            s_mem_alloc_slab.ReleaseNode((void *)allcator);
+            s_mem_alloc_slab.ReleaseNode((void *)allocator);
         }
     }
 }
