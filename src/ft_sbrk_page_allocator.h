@@ -8,11 +8,11 @@
 #ifndef __FT_SBRK_PAGE_ALLOCATOR_H__
 #define __FT_SBRK_PAGE_ALLOCATOR_H__
 
-#include "ft_page_alloc_intf.h"
+#include "ft_sys_alloc_intf.h"
 
 namespace ftmalloc
 {
-    class CSbrkPageAllocator : public IPageAlloc
+    class CSbrkPageAllocator : public ISysAlloc
     {
     };
 }

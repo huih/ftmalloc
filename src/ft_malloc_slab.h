@@ -8,7 +8,7 @@
 #ifndef __FT_MALLOC_SLAB_H__
 #define __FT_MALLOC_SLAB_H__
 
-#include "ft_page_alloc_intf.h"
+#include "ft_sys_alloc_intf.h"
 #include "ft_free_list.h"
 
 namespace ftmalloc
@@ -17,8 +17,8 @@ namespace ftmalloc
     class CSlab
     {
     public:
-        CSlab(IPageAlloc & allocator, size_t page_bits = FT_PAGE_BIT)
-            : page_allocator(allocator)
+        CSlab(ISysAlloc & allocator, size_t page_bits = FT_PAGE_BIT)
+            : _sys_allocator(allocator)
             , _freelist(NULL)
             , _freenum(0)
             , _totalnum(0)
@@ -40,7 +40,7 @@ namespace ftmalloc
             void * node = NULL;
 
             if (_freelist == NULL || _freenum == 0) {
-                void * addr = page_allocator.AllocPages(1, _page_bits);
+                void * addr = _sys_allocator.SysAlloc(1 << _page_bits);
 
                 size_t nodesize = sizeof(T);
                 size_t start    = (size_t)addr;
@@ -86,7 +86,7 @@ namespace ftmalloc
         size_t _totalnum;
         size_t _page_bits;
 
-        IPageAlloc & page_allocator;
+        ISysAlloc & _sys_allocator;
     };
 }
 

@@ -8,11 +8,11 @@
 #ifndef __FT_MMAP_PAGE_ALLOCATOR_H__
 #define __FT_MMAP_PAGE_ALLOCATOR_H__
 
-#include "ft_page_alloc_intf.h"
+#include "ft_sys_alloc_intf.h"
 
 namespace ftmalloc
 {
-    class CMmapPageAllocator : public IPageAlloc
+    class CMmapPageAllocator : public ISysAlloc
     {
     };
 }

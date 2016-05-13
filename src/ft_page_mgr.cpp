@@ -10,6 +10,10 @@
 
 namespace ftmalloc
 {
+    extern CMmapPageAllocator s_mmap_page_allocator;
+    static CSlab<CPageMgr::SPageInfo> s_pageinfo_slab(s_mmap_page_allocator);
+    static CSlab<CPageMgr::SIndexInfo> s_indexinfo_slab(s_mmap_page_allocator);
+    
     CPageMgr CPageMgr::sInstance;
 
     CPageMgr CPageMgr::GetInstance()
@@ -42,5 +46,25 @@ namespace ftmalloc
     
     void CPageMgr::ReleasePages(size_t releasepages)
     {
+    }
+
+    CPageMgr::SPageInfo * CPageMgr::AllocPageInfo()
+    {
+        return s_pageinfo_slab.AllocNode();
+    }
+    
+    CPageMgr::SIndexInfo * CPageMgr::AllocIndexInfo()
+    {
+        return s_indexinfo_slab.AllocNode();
+    }
+    
+    void CPageMgr::ReleasePageInfo(struct SPageInfo * &pageInfo)
+    {
+        s_pageinfo_slab.ReleaseNode(pageInfo);
+    }
+    
+    void CPageMgr::ReleaseIndexInfo(struct SIndexInfo * &indexInfo)
+    {
+         s_indexinfo_slab.ReleaseNode(indexInfo);
     }
 }

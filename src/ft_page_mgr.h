@@ -40,6 +40,13 @@ namespace ftmalloc
         ~CPageMgr();
         void * AllocPages(size_t wantpages);
         void ReleasePages(size_t releasepages);
+
+    private:
+        struct SPageInfo * AllocPageInfo();
+        struct SIndexInfo * AllocIndexInfo();
+        
+        void ReleasePageInfo(struct SPageInfo * &pageInfo);
+        void ReleaseIndexInfo(struct SIndexInfo * &indexInfo);
         
     private:
         CPageMgr();

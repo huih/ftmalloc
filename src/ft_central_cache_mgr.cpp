@@ -14,8 +14,8 @@ namespace ftmalloc
     pthread_mutex_t CCentralCacheMgr::sMutex = FT_MUTEX_INITIALIZER;
     CCentralCacheMgr CCentralCacheMgr::sInstace;
 
-    extern CMmapPageAllocator s_page_allocator;
-    static CSlab<SSpanNode> s_spannode_allocator(s_page_allocator);
+    extern CMmapPageAllocator s_mmap_page_allocator;
+    static CSlab<CCentralCacheMgr::SSpanNode> s_spannode_allocator(s_mmap_page_allocator);
         
     CCentralCacheMgr & CCentralCacheMgr::GetInstance()
     {
