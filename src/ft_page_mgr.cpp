@@ -6,11 +6,14 @@
  */
 
 #include "ft_page_mgr.h"
-#include "ft_lock.h"
+#include "ft_sbrk_page_allocator.h"
+#include "ft_mmap_page_allocator.h"
 
 namespace ftmalloc
 {
     extern CMmapPageAllocator s_mmap_page_allocator;
+    extern CSbrkPageAllocator s_sbrk_page_allocator;
+    
     static CSlab<CPageMgr::SPageInfo> s_pageinfo_slab(s_mmap_page_allocator);
     static CSlab<CPageMgr::SIndexInfo> s_indexinfo_slab(s_mmap_page_allocator);
     
@@ -41,10 +44,30 @@ namespace ftmalloc
     void * CPageMgr::AllocPages(size_t wantpages)
     {
         if (m_iAddressTreeSize == 0) {
+            AllocPagesFromSys(wantpages);
         }
     }
     
     void CPageMgr::ReleasePages(size_t releasepages)
+    {
+    }
+
+    int CPageMgr::AllocPagesFromSys(size_t pages)
+    {
+        void * ptr  = NULL;
+        size_t size = pages << FT_PAGE_BIT;
+        
+        ptr = s_sbrk_page_allocator.SysAlloc(size);
+        if (ptr == NULL) {
+            ptr = s_mmap_page_allocator.SysAlloc(size);
+            if (ptr == NULL) {
+                
+            }
+        }
+        return ptr;
+    }
+    
+    int CPageMgr::ReleasePagesToSys(void * ptr, size_t pages)
     {
     }
 

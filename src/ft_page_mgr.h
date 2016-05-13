@@ -42,6 +42,10 @@ namespace ftmalloc
         void ReleasePages(size_t releasepages);
 
     private:
+        int AllocPagesFromSys(size_t pages);
+        int ReleasePagesToSys(void * ptr, size_t pages);
+        
+    private:
         struct SPageInfo * AllocPageInfo();
         struct SIndexInfo * AllocIndexInfo();
         

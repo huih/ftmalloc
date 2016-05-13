@@ -14,6 +14,11 @@ namespace ftmalloc
 {
     class CSbrkPageAllocator : public ISysAlloc
     {
-    };
+    public:
+        virtual ~CSbrkPageAllocator();
+
+        virtual void * SysAlloc(size_t size);
+        virtual void SysRelease(void * ptr, size_t size);
+    };;
 }
 #endif
