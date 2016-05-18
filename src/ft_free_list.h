@@ -79,13 +79,13 @@ namespace ftmalloc
     private:
         void*    list_;       // Linked list of nodes
                               // On 64-bit hardware, manipulating 16-bit values may be slightly slow.
-        int64 length_;      // Current length.
-        int64 lowater_;     // Low water mark for list length.
-        int64 max_length_;  // Dynamic max list length based on usage.
+        size_t length_;      // Current length.
+        size_t lowater_;     // Low water mark for list length.
+        size_t max_length_;  // Dynamic max list length based on usage.
                                // Tracks the number of times a deallocation has caused
                                // length_ > max_length_.  After the kMaxOverages'th time, max_length_
                                // shrinks and length_overages_ is reset to zero.
-        int64 length_overages_;
+        size_t length_overages_;
 
     public:
         void Init() {
@@ -97,12 +97,12 @@ namespace ftmalloc
         }
 
         // Return current length of list
-        int64 length() const {
+        size_t length() const {
             return length_;
         }
 
         // Return the maximum length of the list.
-        int64 max_length() const {
+        size_t max_length() const {
             return max_length_;
         }
 
@@ -113,7 +113,7 @@ namespace ftmalloc
         }
 
         // Return the number of times that length() has gone over max_length().
-        int64 length_overages() const {
+        size_t length_overages() const {
             return length_overages_;
         }
 
@@ -127,7 +127,7 @@ namespace ftmalloc
         }
 
         // Low-water mark management
-        int64 lowwatermark() const { return lowater_; }
+        size_t lowwatermark() const { return lowater_; }
         void clear_lowwatermark() { lowater_ = length_; }
 
         void Push(void* ptr) {

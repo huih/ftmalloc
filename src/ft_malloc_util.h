@@ -26,4 +26,7 @@
 
 #define FT_PAGE_BIT 16
 
+#define FT_MAX(a, b)    ((a) > (b) ? (a) : (b))
+#define FT_MIN(a, b)    ((a) < (b) ? (a) : (b))
+
 #endif

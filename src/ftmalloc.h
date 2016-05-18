@@ -12,6 +12,8 @@
 #define __THROW
 #endif
 
+#include <stddef.h>
+
 #define HK_VERSION_MAJOR  1
 #define HK_VERSION_MINOR  0
 #define HK_VERSION_PATCH  ""

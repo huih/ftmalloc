@@ -15,6 +15,7 @@ namespace ftmalloc
     class CMmapPageAllocator : public ISysAlloc
     {
     public:
+        CMmapPageAllocator();
         virtual ~CMmapPageAllocator();
 
         virtual void * SysAlloc(size_t size);

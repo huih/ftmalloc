@@ -8,14 +8,20 @@
 #include "ft_central_cache_mgr.h"
 #include "ft_lock.h"
 #include "ft_page_mgr.h"
+#include "ft_free_list.h"
+#include "ft_sbrk_page_allocator.h"
+#include "ft_mmap_page_allocator.h"
+#include "ft_malloc_slab.h"
+#include "ft_malloc_log.h"
 
 namespace ftmalloc
 {
-    pthread_mutex_t CCentralCacheMgr::sMutex = FT_MUTEX_INITIALIZER;
     CCentralCacheMgr CCentralCacheMgr::sInstace;
 
     extern CMmapPageAllocator s_mmap_page_allocator;
-    static CSlab<CCentralCacheMgr::SSpanNode> s_spannode_allocator(s_mmap_page_allocator);
+    static CSlab<CCentralCacheMgr::SSpanNode> s_spannode_allocator("span_node",s_mmap_page_allocator);
+
+    static CMutexType s_central_cache_lock = FT_MUTEX_INITIALIZER();
         
     CCentralCacheMgr & CCentralCacheMgr::GetInstance()
     {
@@ -44,7 +50,7 @@ namespace ftmalloc
 
     void CCentralCacheMgr::InsertRange(int clz, void *start, void *end, int N)
     {
-        CAutoLock lock(sMutex);
+        CAutoLock lock(s_central_cache_lock);
         
         while (start != NULL) {
             void * next = SLL_Next(start);
@@ -53,29 +59,29 @@ namespace ftmalloc
         }
 
         ReleaseBytes(N * CSizeMap::GetInstance().class_to_size(clz));
-        PRINT("Now, allocate out pages:%d, bytes:%lld\n", AllocOutPages(), AllocOutBytes());
+        PRINT("Now, allocate out pages:%zd, bytes:%zd", AllocOutPages(), AllocOutBytes());
 
     }
 
     int CCentralCacheMgr::RemoveRange(int clz, void **start, void **end, int N)
     {
         //TODO:: lock sema
-        PRINT("clz:%d, wantsize:%d\n", clz, N);
+        PRINT("clz:%d, wantsize:%d", clz, N);
 
-        CAutoLock lock(sMutex);
+        CAutoLock lock(s_central_cache_lock);
 
-        int32 allocNodes = FetchFromSpan(clz, N, start, end);
+        size_t allocNodes = FetchFromSpan(clz, N, start, end);
         AllocBytes(allocNodes * CSizeMap::GetInstance().class_to_size(clz));
-        PRINT("Now, allocate out pages:%d, bytes:%lld\n", AllocOutPages(), AllocOutBytes());
+        PRINT("Now, allocate out pages:%zd, bytes:%zd", AllocOutPages(), AllocOutBytes());
 
         return allocNodes;
     }
 
     void * CCentralCacheMgr::AllocPages(int wantPages)
     {
-        CAutoLock lock(sMutex);
+        CAutoLock lock(s_central_cache_lock);
         
-        PRINT("wantpages:%d\n", wantPages);
+        PRINT("wantpages:%d", wantPages);
         void * pageAddr = NULL;
         
         pageAddr = (void *)CPageMgr::GetInstance().AllocPages(wantPages);
@@ -83,23 +89,23 @@ namespace ftmalloc
         AddAllocPages(wantPages);
         AllocBytes(wantPages << FT_PAGE_BIT);
 
-        PRINT("alloc page addr:%p\n", pageAddr);
-        PRINT("Now, allocate out pages:%d, bytes:%lld\n", AllocOutPages(), AllocOutBytes());
+        PRINT("alloc page addr:%p", pageAddr);
+        PRINT("Now, allocate out pages:%zd, bytes:%zd", AllocOutPages(), AllocOutBytes());
 
         return pageAddr;
     }
 
     void CCentralCacheMgr::FreePages(void * pageAddr, int pagesFree)
     {
-        CAutoLock lock(sMutex);
-        PRINT("page address:%p, pages:%d\n", pageAddr, pagesFree);
+        CAutoLock lock(s_central_cache_lock);
+        PRINT("page address:%p, pages:%d", pageAddr, pagesFree);
 
         CPageMgr::GetInstance().ReleasePages(pageAddr, pagesFree);
 
         DecAllocPages(pagesFree);
         ReleaseBytes(pagesFree << FT_PAGE_BIT);
 
-        PRINT("Now, allocate out pages:%d, bytes:%lld\n", AllocOutPages(), AllocOutBytes());
+        PRINT("Now, allocate out pages:%zd, bytes:%zd", AllocOutPages(), AllocOutBytes());
     }
 
     void CCentralCacheMgr::ShowInfo()
@@ -110,17 +116,17 @@ namespace ftmalloc
     {
         struct SSpanInfo & spanInfo = m_sSpanList[clz];
 
-        PRINT("clazz:%d, wantsize:%d, %s\n", clz, N, spanInfo.c_string());
+        PRINT("clazz:%d, wantsize:%d, %s", clz, N, spanInfo.c_string());
 
         if (spanInfo.free_object < N) {
             AllocSpan(clz);
         }
 
         void *s = NULL, *e = NULL;
-        int32 needCount = N;
+        int needCount = N;
         bool firstTimeAlloc = true;
 
-        int32 allocsize = 0;
+        int allocsize = 0;
         SSpanNode * spanNode = NULL;
         
         rb_node * node = rb_first(&spanInfo.alloc_tree);
@@ -128,8 +134,8 @@ namespace ftmalloc
             
             spanNode = AllocTreeGetObject(node);
             allocsize = needCount;
-            PRINT("%s\n", spanNode->c_string());
-            PRINT("N:%d, needsize:%d\n", N, needCount);
+            PRINT("%s", spanNode->c_string());
+            PRINT("N:%d, needsize:%d", N, needCount);
 
             if (spanNode->free_size < allocsize) {
                 allocsize = spanNode->free_size;
@@ -139,8 +145,8 @@ namespace ftmalloc
             spanNode->free_size -= allocsize;
             needCount -= allocsize;
             
-            PRINT("%s\n", spanNode->c_string());
-            PRINT("N:%d, needsize:%d\n", N, needCount);
+            PRINT("%s", spanNode->c_string());
+            PRINT("N:%d, needsize:%d", N, needCount);
 
             if (spanNode->free_size == 0) {
                 RbRemove(&spanInfo.alloc_tree, spanNode, &CCentralCacheMgr::AllocTreeNode);
@@ -163,41 +169,42 @@ namespace ftmalloc
             node = rb_first(&spanInfo.alloc_tree);
         }
 
-        int32 allocNum = N - needCount;
-        spanNode.free_object -= allocNum;
-        PRINT("allocnum:%d, wantsize:%d, start:%p, end:%p\n", allocNum, N, *start, *end);
+        int allocNum = N - needCount;
+        spanInfo.free_object -= allocNum;
+        PRINT("allocnum:%d, wantsize:%d, start:%p, end:%p", allocNum, N, *start, *end);
 
         return allocNum;
     }
 
-    void CCentralCacheMgr::ReleaseToSpan(int clz, void * object)
+    void CCentralCacheMgr::ReleaseToSpan(int iclz, void * object)
     {
-        PRINT("clz:%d, objaddr:%p\n", clz, object);
+        size_t clz = iclz;
+        PRINT("clz:%zd, objaddr:%p", clz, object);
         
         struct SSpanInfo & spanInfo = m_sSpanList[clz];
-        PRINT("%s\n", spanInfo.c_string());
+        PRINT("%s", spanInfo.c_string());
 
         struct SSpanNode * spanNode = m_pSpanNodeCache;
-        if (spanNode == NULL || m_iLastClazz != clz || SpanTreeSearch(clz, spanInfo, object)) { //cache invalid.
-            PRINT("span info cache invalid, spanInfo:%p, lastclz:%d, clz:%d, %s, search from rbtree\n", &spanInfo, m_iLastClazz, clz, spanNode == NULL ? "NULL" : spanNode->c_string());
+        if (spanNode == NULL || m_iLastClazz != clz || SpanTreeSearch(clz, spanNode, object)) { //cache invalid.
+            PRINT("span info cache invalid, spanInfo:%p, lastclz:%zd, clz:%zd, %s, search from rbtree", &spanInfo, m_iLastClazz, clz, spanNode == NULL ? "NULL" : spanNode->c_string());
             spanNode = RbSearch(clz, &spanInfo.span_tree, object, &CCentralCacheMgr::SpanTreeGetObject, &CCentralCacheMgr::SpanTreeSearch);
-            m_pSpanNodeCache = spanInfo;
+            m_pSpanNodeCache = spanNode;
             m_iLastClazz = clz;
         }
         
-        PRINT("%p\n", spanNode);
+        PRINT("spannode:%p", spanNode);
         if (spanNode == NULL) {
-            PRINT("Error, can't find spanInfo for obj:%p\n", object);
+            PRINT("Error, can't find spanInfo for obj:%p", object);
             return;
         }
-        PRINT("%s\n", spanNode->c_string());
+        PRINT("%s", spanNode->c_string());
         
         bool needInsert2AllocTree = (spanNode->free_size == 0);
         SLL_Push(&(spanNode->object_list), object);
 
         spanNode->free_size++;
         spanInfo.free_object++;
-        PRINT("insert2allocTree:%d, %s\n", needInsert2AllocTree, spanNode->c_string());
+        PRINT("insert2allocTree:%d, %s", needInsert2AllocTree, spanNode->c_string());
 
         if (needInsert2AllocTree) {
             RbInsert(&spanInfo.alloc_tree, spanNode, &CCentralCacheMgr::AllocTreeGetObject, &CCentralCacheMgr::AllocTreeNode, &CCentralCacheMgr::AllocTreeInsert);
@@ -209,7 +216,7 @@ namespace ftmalloc
     int CCentralCacheMgr::AllocSpan(int clz)
     {
         struct SSpanInfo & spanInfo = m_sSpanList[clz];
-        PRINT("clz:%d, %s\n", clz, spanInfo.c_string());
+        PRINT("clz:%d, %s", clz, spanInfo.c_string());
 
         size_t nodeSize     = CSizeMap::GetInstance().class_to_size(clz);
         size_t wantPages    = CSizeMap::GetInstance().class_to_pages(clz);
@@ -217,9 +224,9 @@ namespace ftmalloc
         size_t allocNodes   = allocSize / nodeSize;
 
         void * allocAddr = (void *)CPageMgr::GetInstance().AllocPages(wantPages);
-        PRINT("alloc new spaninfo, %p\n", allocAddr);
+        PRINT("alloc new spaninfo, %p", allocAddr);
 
-        struct SSpanNode * spanNode = (struct SSpanNode *)s_spannode_allocator.AllocNode();
+        struct SSpanNode * spanNode = s_spannode_allocator.AllocNode();
         {
             spanNode->span_addr = allocAddr;
             spanNode->span_size = allocNodes;
@@ -240,25 +247,25 @@ namespace ftmalloc
             }
             SLL_SetNext((void *)curr, NULL);
             SLL_SetNext(&spanNode->object_list, spanNode->span_addr);
-            PRINT("%s\n", spanNode->c_string());
+            PRINT("%s", spanNode->c_string());
         }
         
         InsertSpan(clz, spanNode);
-        PRINT("End of allocspan, %s\n", spanInfo.c_string());
+        PRINT("End of allocspan, %s", spanInfo.c_string());
         
         AddAllocPages(wantPages);
-        PRINT("Now, allocate out pages:%d, bytes:%lld\n", AllocOutPages(), AllocOutBytes());
+        PRINT("Now, allocate out pages:%zd, bytes:%zd", AllocOutPages(), AllocOutBytes());
     }
     
     int CCentralCacheMgr::ReleaseSpan(int clz, struct SSpanNode * spanNode)
     {
-        PRINT("clz:%d, %s\n", clz, spanNode->c_string());
+        PRINT("clz:%d, %s", clz, spanNode->c_string());
         if (spanNode->free_size != spanNode->span_size) {
             return -1;
         }
 
         struct SSpanInfo & spanInfo = m_sSpanList[clz];
-        PRINT("%s\n", spanInfo.c_string());
+        PRINT("%s", spanInfo.c_string());
 
         if (m_pSpanNodeCache== spanNode) {
             m_pSpanNodeCache    = NULL;
@@ -268,36 +275,36 @@ namespace ftmalloc
         RbRemove(&spanInfo.span_tree, spanNode, &CCentralCacheMgr::SpanTreeNode);
         RbRemove(&spanInfo.alloc_tree, spanNode, &CCentralCacheMgr::AllocTreeNode);
 
-        spanInfo.span_size --;
+        spanInfo.span_count --;
         
         CSizeMap & sizemap  = CSizeMap::GetInstance();
         
         size_t pages2free   = sizemap.class_to_pages(clz);
         spanInfo.free_object -= (pages2free << FT_PAGE_BIT) / sizemap.class_to_size(clz);
 
-        CPageMgr::GetInstance().ReleasePages((void *)spanInfo->span_addr, pages2free);
+        CPageMgr::GetInstance().ReleasePages((void *)spanNode->span_addr, pages2free);
 
-        s_spannode_allocator.ReleaseNode((void *)spanNode);
-        PRINT("%s\n", spanInfo.c_string());
+        s_spannode_allocator.ReleaseNode(spanNode);
+        PRINT("%s", spanInfo.c_string());
 
         DecAllocPages(pages2free);
-        PRINT("Now, allocate out pages:%d, bytes:%lld\n", AllocOutPages(), AllocOutBytes());
+        PRINT("Now, allocate out pages:%zd, bytes:%zd", AllocOutPages(), AllocOutBytes());
 
         return 0;
     }
     
-    int CCentralCacheMgr::InsertSpan(int clz, struct SSpanNode * spanInfo)
+    int CCentralCacheMgr::InsertSpan(int clz, struct SSpanNode * spanNode)
     {
-        PRINT("clz:%d, %s\n", clz, spanInfo->c_string());
+        PRINT("clz:%d, %s", clz, spanNode->c_string());
         
         struct SSpanInfo & spanInfo = m_sSpanList[clz];
-        spanInfo.span_size++;
+        spanInfo.span_count++;
 
         CSizeMap & sizemap = CSizeMap::GetInstance();
         spanInfo.free_object += (sizemap.class_to_pages(clz) << FT_PAGE_BIT) / sizemap.class_to_size(clz);
 
-        RbInsert(&spanInfo.span_tree, spanInfo, &CCentralCacheMgr::SpanTreeGetObject, &CCentralCacheMgr::SpanTreeNode, &CCentralCacheMgr::SpanTreeInsert);
-        RbInsert(&spanInfo.alloc_tree, spanInfo, &CCentralCacheMgr::AllocTreeGetObject, &CCentralCacheMgr::AllocTreeNode, &CCentralCacheMgr::AllocTreeInsert);
+        RbInsert(&spanInfo.span_tree, spanNode, &CCentralCacheMgr::SpanTreeGetObject, &CCentralCacheMgr::SpanTreeNode, &CCentralCacheMgr::SpanTreeInsert);
+        RbInsert(&spanInfo.alloc_tree, spanNode, &CCentralCacheMgr::AllocTreeGetObject, &CCentralCacheMgr::AllocTreeNode, &CCentralCacheMgr::AllocTreeInsert);
 
         return 0;
     }
@@ -332,7 +339,7 @@ namespace ftmalloc
         return m_llAllocBytes;
     }
 
-    size_t CCentralCacheMgr::SpanTreeSearch(int32 clz, const void * lhs, const void * rhs)
+    size_t CCentralCacheMgr::SpanTreeSearch(size_t clz, const void * lhs, const void * rhs)
     {
         size_t object_size = CSizeMap::GetInstance().class_to_size(clz);
 
@@ -342,8 +349,8 @@ namespace ftmalloc
 
         size_t object_addr = (size_t)rhs;
 
-        PRINT("start:%p, length:%d, obj:%p\n", spanInfo.span_addr, object_size * spanInfo.span_size, object_addr);
-        PRINT("start:%llu, end:%llu, obj:%llu\n", (int64)start_addr, (int64)end_addr, (int64)object_addr);
+        PRINT("start:%p, length:%zd, obj:%p", spanInfo.span_addr, object_size * spanInfo.span_size, (void *)object_addr);
+        PRINT("start:%zd, end:%zd, obj:%zd", (size_t)start_addr, (size_t)end_addr, (size_t)object_addr);
 
         if (object_addr >= start_addr && object_addr < end_addr) {
             return 0;
@@ -361,8 +368,8 @@ namespace ftmalloc
         struct SSpanNode & lNode = *(struct SSpanNode *)lhs;
         struct SSpanNode & rNode = *(struct SSpanNode *)rhs;
         
-        PRINT("lhs:%p, rhs:%p\n", lNode.span_addr, rNode.span_addr);
-        PRINT("lhs:%llu, rhs:%llu\n", (size_t)lNode.span_addr, (size_t)rNode.span_addr);
+        PRINT("lhs:%p, rhs:%p", lNode.span_addr, rNode.span_addr);
+        PRINT("lhs:%zd, rhs:%zd", (size_t)lNode.span_addr, (size_t)rNode.span_addr);
 
         return (size_t)lNode.span_addr - (size_t)rNode.span_addr;
     }
@@ -377,7 +384,7 @@ namespace ftmalloc
         return &spanNode->span_node;
     }
 
-    size_t CCentralCacheMgr::AllocTreeSearch(int32 clz, const void * lhs, const void * rhs)
+    size_t CCentralCacheMgr::AllocTreeSearch(size_t clz, const void * lhs, const void * rhs)
     {
         return (size_t)lhs - (size_t)rhs;
     }
@@ -389,7 +396,7 @@ namespace ftmalloc
 
     CCentralCacheMgr::SSpanNode * CCentralCacheMgr::AllocTreeGetObject(rb_node * rbNode)
     {
-        return container_of(rbNode, struct SSpanInfo, alloc_node);
+        return container_of(rbNode, struct SSpanNode, alloc_node);
     }
 
     rb_node * CCentralCacheMgr::AllocTreeNode(SSpanNode * spanNode)
@@ -397,14 +404,14 @@ namespace ftmalloc
         return &(spanNode->alloc_node);
     }
 
-    struct SSpanNode * CCentralCacheMgr::RbSearch(int32 clz, struct rb_root *root, 
+    struct CCentralCacheMgr::SSpanNode * CCentralCacheMgr::RbSearch(size_t clz, struct rb_root *root, 
         void * object, RbGetObjectFunc getObject, RbSearchFunc search)
     {
         struct rb_node *node = root->rb_node;
 
         while (node) {
             struct SSpanNode *spanNode = (this->*getObject)(node);
-            int64 result = (this->*search)(clz, (void *)spanNode, object);
+            size_t result = (this->*search)(clz, (void *)spanNode, object);
 
             if (result < 0)
                 node = node->rb_left;
@@ -416,7 +423,7 @@ namespace ftmalloc
         return NULL;
     }
     
-    int CCentralCacheMgr::RbInsert(struct rb_root *root, struct SSpanNode *data, 
+    size_t CCentralCacheMgr::RbInsert(struct rb_root *root, struct SSpanNode *data, 
         RbGetObjectFunc getObject, RbGetNodeFunc getNode, RbInsertFunc compare)
     {
         struct rb_node **newnode = &(root->rb_node), *parent = NULL;
@@ -424,7 +431,7 @@ namespace ftmalloc
         /* Figure out where to put new node */
         while (*newnode) {
             struct SSpanNode *thisnode = (this->*getObject)(*newnode);
-            int64 result = (this->*compare)(data, thisnode);
+            size_t result = (this->*compare)(data, thisnode);
 
             parent = *newnode;
             if (result < 0)

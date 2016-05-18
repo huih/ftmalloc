@@ -8,6 +8,8 @@
 #ifndef __FT_SYS_ALLOC_INTF_H__
 #define __FT_SYS_ALLOC_INTF_H__
 
+#include <stddef.h>
+
 namespace ftmalloc
 {
     class ISysAlloc

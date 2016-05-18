@@ -8,11 +8,14 @@
 #ifndef __FT_CENTRAL_CACHE_MGR_H__
 #define __FT_CENTRAL_CACHE_MGR_H__
 
+#include "ft_rb_tree.h"
+#include "ft_sizemap.h"
+
 namespace ftmalloc
 {   
     class CCentralCacheMgr
     {
-    private:
+    public:
         struct SSpanNode
         {
             int span_size;
@@ -26,7 +29,7 @@ namespace ftmalloc
 
             const char * c_string() {
                 static char buf[128];
-#ifdef _DEBUG
+#ifdef C_STRING_FUNC
                 snprintf(buf, 128, "SSpanNode, span_size:%d, free_size:%d, span_addr:%p, object_list:%p",
                     span_size, free_size, span_addr, object_list);
 #else
@@ -46,7 +49,7 @@ namespace ftmalloc
 
             const char * c_string() {
                     static char buf[128];
-#ifdef _DEBUG
+#ifdef C_STRING_FUNC
                     snprintf(buf, 128, "SSpanInfo, span_count:%d, free_object:%d",
                         span_count, free_object);
 #else
@@ -79,7 +82,7 @@ namespace ftmalloc
     private:
         typedef SSpanNode * (CCentralCacheMgr::*RbGetObjectFunc)(rb_node * rbNode);
         typedef rb_node * (CCentralCacheMgr::*RbGetNodeFunc)(struct SSpanNode * spanNode);
-        typedef size_t (CCentralCacheMgr::*RbSearchFunc)(int clz, const void * lhs, const void * rhs);
+        typedef size_t (CCentralCacheMgr::*RbSearchFunc)(size_t clz, const void * lhs, const void * rhs);
         typedef size_t (CCentralCacheMgr::*RbInsertFunc)(const void * lhs, const void * rhs);
         
     private:
@@ -100,36 +103,34 @@ namespace ftmalloc
         int InsertSpan(int clz, struct SSpanNode * spanInfo);
 
     private:
-        struct SSpanNode * RbSearch(int32 clz, struct rb_root *root, void * object, 
+        struct SSpanNode * RbSearch(size_t clz, struct rb_root *root, void * object, 
             RbGetObjectFunc getObject, RbSearchFunc search);
-        int RbInsert(struct rb_root *root, struct SSpanNode *data, 
+        size_t RbInsert(struct rb_root *root, struct SSpanNode *data, 
             RbGetObjectFunc getObject, RbGetNodeFunc getNode, RbInsertFunc compare);
         void RbRemove(rb_root * root, struct SSpanNode * spanNode, RbGetNodeFunc getNode);
 
     private:
         //help function for SSpanInfo.span_tree.
-        int64 SpanTreeSearch(int32 clz, const void * lhs, const void * rhs);
-        int64 SpanTreeInsert(const void * lhs, const void * rhs);
+        size_t SpanTreeSearch(size_t clz, const void * lhs, const void * rhs);
+        size_t SpanTreeInsert(const void * lhs, const void * rhs);
         struct SSpanNode * SpanTreeGetObject(rb_node * rbNode);
         rb_node * SpanTreeNode(struct SSpanNode * spanNode);
 
         //help function for SSpanInfo.alloc_tree.
-        int64 AllocTreeSearch(int32 clz, const void * lhs, const void * rhs);
-        int64 AllocTreeInsert(const void * lhs, const void * rhs);
+        size_t AllocTreeSearch(size_t clz, const void * lhs, const void * rhs);
+        size_t AllocTreeInsert(const void * lhs, const void * rhs);
         struct SSpanNode * AllocTreeGetObject(rb_node * rbNode);
         rb_node * AllocTreeNode(struct SSpanNode * spanNode);
         
     private:
         struct SSpanInfo m_sSpanList[kNumClasses];
         struct SSpanNode * m_pSpanNodeCache;
-        int    m_iLastClazz;
+        size_t m_iLastClazz;
         
         size_t m_llAllocPages;
         size_t m_llAllocBytes;
 
-        static CMutexType sMutex;
         static CCentralCacheMgr sInstace;
-        
     };
 }
 

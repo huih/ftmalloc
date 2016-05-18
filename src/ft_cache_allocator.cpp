@@ -6,6 +6,11 @@
  */
 
 #include "ft_cache_allocator.h"
+#include "ft_malloc_log.h"
+#include "ft_central_cache_mgr.h"
+
+#include <string.h>
+#include <errno.h>
 
 namespace ftmalloc
 {
@@ -34,12 +39,15 @@ namespace ftmalloc
         , m_llUsedSize(0)
         , m_llAllocPages(0)
     {
+        for (size_t i = 0; i < kNumClasses; i++) {
+            m_cFreeList[i].Init();
+        }
     }
     
     CCacheAllocator::~CCacheAllocator()
     {
-        for (int32 i = 0; i < kNumClasses; i++) {
-            PRINT("freelist[%d].size = %lld\n", i, m_cFreeList[i].length());
+        for (size_t i = 0; i < kNumClasses; i++) {
+            PRINT("freelist[%zd].size = %zd", i, m_cFreeList[i].length());
             if (m_cFreeList[i].length() > 0) {
                 ReleaseToCentral(i, m_cFreeList[i].length());
             }
@@ -48,17 +56,18 @@ namespace ftmalloc
 
     void * CCacheAllocator::Malloc(size_t bytes)
     {
+        PRINT("want size:%zd", bytes);
         void * addr = NULL;
         if (bytes == 0) {
             return addr;
         }
         
-        if (IS_BIG_MEM_ALLOC(bytes)) {
+        if (IS_BIG_MEM_ALLOC(bytes) >= kMaxSize) {
             addr = PageAlloc(bytes);
         } else {
             addr = SmallAlloc(bytes);
         }
-
+        PRINT("want size:%zd, addr:%p", bytes, addr);
         return addr;
     }
 
@@ -123,20 +132,23 @@ namespace ftmalloc
         size_t freeSize = 0;
         
         void * realAddr = GET_MEM_ADDR(ptr);
-        PRINT("INFO, Get clazz info from memory:%d, addr:%p, real:%p\n", clazz, ptr, realAddr);
+        PRINT("INFO, Get clazz info from memory:%zd, addr:%p, real:%p", clazz, ptr, realAddr);
 
         if (clazz != PAGE_CLAZZ) {
             freeSize = CSizeMap::GetInstance().class_to_size(clazz);
             CFreeList & list = m_cFreeList[clazz];
             list.Push(realAddr);
 
-            size_t batch_size = CSizeMap::GetInstance().num_objects_to_move(clazz);
-
-            if (list.length() > list.max_length() << 1) {
-                ReleaseToCentral(clazz, batch_size);
+            PRINT("clazz:%zd, length:%zd, max_length:%zd!", clazz, list.length(), list.max_length());
+            ReleaseToCentral(clazz, 1);
+            PRINT("clazz:%zd, length:%zd, max_length:%zd!", clazz, list.length(), list.max_length());
+            
+            if (list.length() >= list.max_length()) {
+                list.set_max_length(list.max_length() >> 1);
+                ReleaseToCentral(clazz, list.length() - list.max_length());
             }
         } else {
-            int32 pages = GET_MEM_INFO(realAddr);
+            size_t pages = GET_MEM_INFO(realAddr);
             realAddr = GET_MEM_ADDR(realAddr);
             freeSize = pages << FT_PAGE_BIT;
 
@@ -152,37 +164,37 @@ namespace ftmalloc
         size_t cl           = sizemap.SizeClass(allocSize);
         size_t size         = sizemap.class_to_size(cl);
 
-        PRINT("SmallAlloc, want:%d, c1:%lld, size:%lld\n", bytes, cl, size);
+        PRINT("SmallAlloc, want:%zd, c1:%zd, size:%zd", bytes, cl, size);
 
         void * allocAddr = NULL;
 
         CFreeList & list = m_cFreeList[cl];
-        PRINT("clazz:%d, freeobj:%d\n", cl, list.empty());
+        PRINT("clazz:%zd, freeobj:%zd", cl, list.length());
         if (list.empty()) {
             allocAddr = FetchMemFromCentral(cl, size);
         } else {
             allocAddr = list.Pop();
         }
-        PRINT("object addr:%p\n", allocAddr);
+        PRINT("object addr:%p", allocAddr);
         
         m_llUsedSize += size;
         SET_MEM_INFO(allocAddr, cl);
 
         void * retAddr = RETURN_MEM_ADDR(allocAddr);
-        PRINT("return addr:%p\n", retAddr);
+        PRINT("return addr:%p", retAddr);
 
         return retAddr;
     }
     
     void * CCacheAllocator::PageAlloc(size_t bytes)
     {
-        int32 allocSize = GET_ALLOC_LENGTH(bytes, ALLOC_PAGE_INFONUM);
-        int32 needPages = (allocSize >> FT_PAGE_BIT) + ((allocSize & (FT_PAGE_BIT - 1)) > 0 ? 1 : 0);
+        size_t allocSize = GET_ALLOC_LENGTH(bytes, ALLOC_PAGE_INFONUM);
+        size_t needPages = (allocSize >> FT_PAGE_BIT) + ((allocSize & (FT_PAGE_BIT - 1)) > 0 ? 1 : 0);
 
-        PRINT("want size:%d, realsize:%d, pages:%d\n", bytes, allocSize, needPages);
+        PRINT("want size:%zd, realsize:%zd, pages:%zd", bytes, allocSize, needPages);
 
         void * allocAddr = CCentralCacheMgr::GetInstance().AllocPages(needPages);
-        PRINT("want size:%d, realsize:%d, pages:%d, addr:%p\n", bytes, allocSize, needPages, allocAddr);
+        PRINT("want size:%zd, realsize:%zd, pages:%zd, addr:%p", bytes, allocSize, needPages, allocAddr);
         
         m_llAllocPages += needPages;
 
@@ -194,7 +206,7 @@ namespace ftmalloc
         SET_MEM_INFO(retAddr, PAGE_CLAZZ);
         retAddr = RETURN_MEM_ADDR(retAddr);
 
-        PRINT("return addr:%p\n", retAddr);
+        PRINT("return addr:%p", retAddr);
 
         return retAddr;
     }
@@ -203,17 +215,18 @@ namespace ftmalloc
     {
         CFreeList & list = m_cFreeList[clazz];
         //ASSERT(list.empty());
-        PRINT("FetchMemFromCentral, clz:%d, size:%d\n", clazz, size);
+        PRINT("FetchMemFromCentral, clz:%zd, size:%zd", clazz, size);
 
         CSizeMap sizemap = CSizeMap::GetInstance();
 
         const size_t batch_size = sizemap.num_objects_to_move(clazz);
-        const size_t num_to_move = list.max_length() < batch_size ? list.max_length() : batch_size;
-        PRINT("FetchMemFromCentral, batchSize:%lld, list.length:%lld, num_to_move:%lld\n", batch_size, list.max_length(), num_to_move);
+        const size_t num_to_move = FT_MIN(list.max_length(), batch_size);
+        PRINT("FetchMemFromCentral, batchSize:%zd, list.length:%zd, num_to_move:%zd", 
+            batch_size, list.max_length(), num_to_move);
         
         void *start, *end;
-        int32 fetch_count = CCentralCacheMgr::GetInstance().RemoveRange(clazz, &start, &end, num_to_move);
-        PRINT("FetchMemFromCentral, alloc nodes from central:%d, start:%p, end:%p\n", fetch_count, start, end);
+        size_t fetch_count = CCentralCacheMgr::GetInstance().RemoveRange(clazz, &start, &end, num_to_move);
+        PRINT("FetchMemFromCentral, alloc nodes from central:%zd, start:%p, end:%p", fetch_count, start, end);
 
         m_llAllocSize += fetch_count * size;
         if (--fetch_count >= 0) {
@@ -221,7 +234,7 @@ namespace ftmalloc
         }
 
         if (list.max_length() < batch_size) {
-            PRINT("FetchMemFromCentral, set list max size[%d] = %lld\n", clazz, list.max_length() << 1);
+            PRINT("FetchMemFromCentral, set list max size[%zd] = %zd", clazz, list.max_length() << 1);
             list.set_max_length(list.max_length() << 1);
         }
 
@@ -230,7 +243,7 @@ namespace ftmalloc
     
     void   CCacheAllocator::ReleaseToCentral(size_t clazz, size_t N)
     {
-        PRINT("clz:%d, returnsize:%d\n", clazz, N);
+        PRINT("clz:%zd, returnsize:%zd", clazz, N);
         CFreeList & list = m_cFreeList[clazz];
         
         if (list.length() < N) {

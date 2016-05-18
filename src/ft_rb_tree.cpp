@@ -1,6 +1,6 @@
 #include "ft_rb_tree.h"
 
-namespace xc
+namespace ftmalloc
 {
     static void __rb_rotate_left(struct rb_node *node, struct rb_root *root)
     {

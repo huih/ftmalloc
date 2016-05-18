@@ -2,7 +2,7 @@
 
 namespace ftmalloc
 {
-    int CSizeMap::FLAGS_tcmalloc_transfer_num_objects = kPageSize >> 3;
+    size_t CSizeMap::FLAGS_tcmalloc_transfer_num_objects = kPageSize >> 3;
 
     // Note: the following only works for "n"s that fit in 32-bits, but
     // that is fine since we only use it for small sizes.
@@ -47,6 +47,12 @@ namespace ftmalloc
     CSizeMap & CSizeMap::GetInstance()
     {
         static CSizeMap sInstance;
+        static bool bInit = false;
+        if (!bInit) {
+            bInit = true;
+            sInstance.Init();
+        }
+        
         return sInstance;
     }
 
@@ -169,7 +175,7 @@ namespace ftmalloc
     {
         size_t length = sizeof(class_to_size_) / sizeof(class_to_size_[0]);
         for (size_t i = 0; i < length; i++) {
-            printf("class_to_size_[%d] = %d, class_to_pages_[%d] = %d, number:%d\n",
+            printf("class_to_size_[%zd] = %zd, class_to_pages_[%zd] = %zd, number:%d\n",
                 i, class_to_size_[i], i, class_to_pages_[i], num_objects_to_move_[i]);
         }
     }

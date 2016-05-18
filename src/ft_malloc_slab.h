@@ -10,6 +10,11 @@
 
 #include "ft_sys_alloc_intf.h"
 #include "ft_free_list.h"
+#include "ft_malloc_log.h"
+#include "ft_malloc_util.h"
+
+#include <string.h>
+#include <new>
 
 namespace ftmalloc
 {
@@ -17,7 +22,7 @@ namespace ftmalloc
     class CSlab
     {
     public:
-        CSlab(ISysAlloc & allocator, size_t page_bits = FT_PAGE_BIT)
+        CSlab(const char * name, ISysAlloc & allocator, size_t page_bits = FT_PAGE_BIT)
             : _sys_allocator(allocator)
             , _freelist(NULL)
             , _freenum(0)
@@ -29,6 +34,9 @@ namespace ftmalloc
             } else if (_page_bits < 12) {
                 _page_bits = 12;    //4// 4k. 1 << 12.
             }
+            strncpy(_name, name, FT_MIN(1023, strlen(name)));
+            PRINT("cslab(%s) create, page_bit:%zd, nodesize:%lu", 
+                _name, _page_bits, sizeof(T));
         }
 
         ~CSlab()
@@ -38,9 +46,12 @@ namespace ftmalloc
         T * AllocNode()
         {
             void * node = NULL;
-
+            PRINT("cslab(%s), want a node!", _name);
+            
             if (_freelist == NULL || _freenum == 0) {
                 void * addr = _sys_allocator.SysAlloc(1 << _page_bits);
+
+                PRINT("cslab(%s), allocator %p, %d", _name, addr, (1 << _page_bits));
 
                 size_t nodesize = sizeof(T);
                 size_t start    = (size_t)addr;
@@ -63,7 +74,11 @@ namespace ftmalloc
             node = SLL_Pop(&_freelist);
             _freenum--;
 
+            PRINT("cslab(%s), alloc node:%p", _name, node);
+
             ::new((void *)node) T();
+            //T * ptr = (T *)ptr;
+            //ptr->T::T();
             return (T *)node;
         }
 
@@ -73,6 +88,7 @@ namespace ftmalloc
                 return;
             }
 
+            PRINT("cslab(%s), release node:%p", _name, node);
             node->~T();
             SLL_Push(&_freelist, (void *)node);
             _freenum++;
@@ -87,6 +103,7 @@ namespace ftmalloc
         size_t _page_bits;
 
         ISysAlloc & _sys_allocator;
+        char _name[1024];
     };
 }
 

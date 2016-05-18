@@ -76,10 +76,10 @@ namespace ftmalloc
             //ASSERT(s <= kMaxSize);
             //if (LIKELY(s <= kMaxSmallSize)) {
             if ((s <= kMaxSmallSize)) {
-                return (static_cast<uint32>(s) + 7) >> 3;
+                return (static_cast<size_t>(s) + 7) >> 3;
             }
             else {
-                return (static_cast<uint32>(s) + 127 + (120 << 7)) >> 7;
+                return (static_cast<size_t>(s) + 127 + (120 << 7)) >> 7;
             }
         }
 
@@ -91,7 +91,7 @@ namespace ftmalloc
         // Mapping from size class to number of pages to allocate at a time
         size_t class_to_pages_[kNumClasses];
 
-        static int32 FLAGS_tcmalloc_transfer_num_objects;
+        static size_t FLAGS_tcmalloc_transfer_num_objects;
 
     public:
         // Constructor should do nothing since we rely on explicit Init()

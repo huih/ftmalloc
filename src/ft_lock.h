@@ -12,7 +12,7 @@
 
 namespace ftmalloc
 {    
-    typedef struct pthread_mutex_t CMutexType;
+    typedef pthread_mutex_t CMutexType;
 
     #define FT_MUTEX_INITIALIZER()      \
         PTHREAD_MUTEX_INITIALIZER
@@ -20,7 +20,7 @@ namespace ftmalloc
     #define FT_MUTEX_CREATE(mutex)      \
         pthread_mutex_init(&mutex, NULL);
 
-    #define FT_MUTEX_CREATE(mutex)      \
+    #define FT_MUTEX_DESTROY(mutex)      \
         pthread_mutex_destroy(&mutex);
 
     #define FT_MUTEX_LOCK(mutex)        \
@@ -32,18 +32,18 @@ namespace ftmalloc
     class CAutoLock
     {
     public:
-        CAutoLock(MutexType & mutex)
-            mMutex(mutex)
+        CAutoLock(CMutexType & mutex)
+            : mMutex(mutex)
         {
             FT_MUTEX_LOCK(mMutex);
         }
 
-        ~AutoLock()
+        ~CAutoLock()
         {
             FT_MUTEX_UNLOCK(mMutex);
         }
     private:
-        MutexType & mMutex;
+        CMutexType & mMutex;
     };
 }
 

@@ -2,7 +2,6 @@
 #define __RB_TREE_H__
 
 #include <stdio.h>
-#include "xc_util.h"
 
 namespace ftmalloc
 {
@@ -53,7 +52,7 @@ namespace ftmalloc
 
     static inline void rb_set_parent(struct rb_node *rb, struct rb_node *p)
     {
-        rb->rb_parent_color = (rb->rb_parent_color & 3) | (int64)p;
+        rb->rb_parent_color = (rb->rb_parent_color & 3) | (size_t)p;
     }
     static inline void rb_set_color(struct rb_node *rb, int color)
     {

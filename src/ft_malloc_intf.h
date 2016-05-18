@@ -8,6 +8,8 @@
 #ifndef __FT_MALLOC_INTF_H__
 #define __FT_MALLOC_INTF_H__
 
+#include <stddef.h>
+
 namespace ftmalloc
 {    
     void * __Malloc(size_t);

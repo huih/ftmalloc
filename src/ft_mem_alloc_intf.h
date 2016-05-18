@@ -8,12 +8,14 @@
 #ifndef __FT_MEM_ALLOC_INTF_H__
 #define __FT_MEM_ALLOC_INTF_H__
 
+#include <stddef.h>
+
 namespace ftmalloc
 {
     class IMemAlloc
     {
     public:
-        virtual ~IAlloc() {}
+        virtual ~IMemAlloc() {}
 
         virtual void * Malloc(size_t) = 0;
         virtual void * ReAlloc(void *, size_t) = 0;

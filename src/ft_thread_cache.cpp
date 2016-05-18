@@ -15,7 +15,7 @@ namespace ftmalloc
     static void ThreadObjectDestructor(void * object)
     {
         IMemAlloc * pAllcator = static_cast<IMemAlloc *>(object);
-        PRINT("ThreadObjectDestructor, TID:%llu, obj:%p\n", pthread_self(), object);
+        PRINT("ThreadObjectDestructor, TID:%lu, obj:%p\n", pthread_self(), object);
         
         if (pAllcator != NULL) {
         	IMemAlloc::DestroyMemAllocator(pAllcator);
@@ -33,6 +33,7 @@ namespace ftmalloc
     CThreadCache::CThreadCache()
         : m_cKey()
     {
+        PRINT("create CThreadCache");
         pthread_key_create(&m_cKey, ThreadObjectDestructor);
     }
     
@@ -40,14 +41,14 @@ namespace ftmalloc
     {
     }
 
-    IMemAlloc & CThreadCache::GetAllocator()
+    IMemAlloc * CThreadCache::GetAllocator()
     {
         IMemAlloc * pAllocator = static_cast<IMemAlloc *>(pthread_getspecific(m_cKey));
     	if(pAllocator == NULL) {
     		pAllocator = IMemAlloc::CreateMemAllocator();
-            PRINT("tid:%llu, object:%p\n", pthread_self(), pAllocator);
+            PRINT("tid:%lu, object:%p", pthread_self(), pAllocator);
     		pthread_setspecific(m_cKey, static_cast<const void *>(pAllocator));
     	}
-    	return *pAllocator;
+    	return pAllocator;
     }
 }
